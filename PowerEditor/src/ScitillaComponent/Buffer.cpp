@@ -1031,8 +1031,6 @@ bool FileManager::saveBuffer(BufferID id, const TCHAR * filename, bool isCopy, g
 		if (attrib != INVALID_FILE_ATTRIBUTES)
 		{
 			isHiddenOrSys = (attrib & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0;
-			if (isHiddenOrSys)
-				::SetFileAttributes(filename, attrib & ~(FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM));
 		}
 	}
 
@@ -1044,8 +1042,18 @@ bool FileManager::saveBuffer(BufferID id, const TCHAR * filename, bool isCopy, g
 	UnicodeConvertor.setEncoding(mode);
 
 	int encoding = buffer->getEncoding();
-
-	FILE *fp = UnicodeConvertor.fopen(fullpath, TEXT("wb"));
+	FILE *fp;
+	if (isHiddenOrSys)
+	{
+		fp = UnicodeConvertor.fopen(fullpath, TEXT("r+b"));
+		fseek(fp, 0, SEEK_SET); // or rewind(fp);
+		LARGE_INTEGER Size = { 0 };
+		(SetFilePointerEx(fp, Size, NULL, FILE_BEGIN) && SetEndOfFile(fp));
+	}
+	else
+	{
+		fp = UnicodeConvertor.fopen(fullpath, TEXT("wb"));
+	}
 	if (fp)
 	{
 		_pscratchTilla->execute(SCI_SETDOCPOINTER, 0, buffer->_doc);	//generate new document
@@ -1094,9 +1102,6 @@ bool FileManager::saveBuffer(BufferID id, const TCHAR * filename, bool isCopy, g
 			// set to signaled state via destructor EventReset.
 			return false;
 		}
-
-		if (isHiddenOrSys)
-			::SetFileAttributes(fullpath, attrib);
 
 		if (isCopy)
 		{
